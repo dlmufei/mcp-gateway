@@ -74,11 +74,65 @@ chmod +x run_local.sh deploy_remote.sh
 ./run_local.sh start    # 启动
 ./run_local.sh status   # 查看状态
 ./run_local.sh logs     # 查看日志
+./run_local.sh check    # 检查 MCP 服务器状态和工具列表
 
 # 远程 Linux 部署
 ./deploy_remote.sh deploy   # 编译 + 上传 + 启动
 ./deploy_remote.sh status   # 远程状态
 ./deploy_remote.sh logs     # 远程日志
+```
+
+## Check Command
+
+使用 `check` 命令可以验证配置并检查所有 MCP 服务器的连接状态和可用工具：
+
+```bash
+# 通过脚本运行
+./run_local.sh check
+
+# 或直接运行二进制
+./mcp-gateway -check -config configs/mcp_config.json
+
+# JSON 格式输出（方便脚本解析）
+./mcp-gateway -check -config configs/mcp_config.json -output json
+
+# 自定义超时时间
+./mcp-gateway -check -config configs/mcp_config.json -timeout 60s
+```
+
+输出示例：
+
+```
+==================================================
+         MCP Gateway Configuration Check
+==================================================
+
+📡 Upstream: xiaozhi-agent
+   Endpoint: wss://api.xiaozhi.me/mcp/?token=***
+
+   ✅ [tencentdocs] (http)
+      URL: https://docs.qq.com/openapi/mcp
+      Status: Connected
+      Server: mcp-McpserverService v1.0.0
+      Tools (12):
+        • create_word_by_markdown      通过Markdown格式创建在线Word文档...
+        • get_content                  获取文档完整内容...
+        ...
+
+   ❌ [local-mcp] (stdio)
+      Command: python mcp_server.py
+      Status: Failed
+      Error: start failed: exec: "python": not found
+
+--------------------------------------------------
+📊 Summary
+--------------------------------------------------
+   Total Upstreams:    1
+   Total MCP Servers:  2
+     • Healthy:        1
+     • Failed:         1
+   Total Tools:        12
+==================================================
 ```
 
 ## Configuration
@@ -193,6 +247,7 @@ mcp-gateway/
 │   └── main.go                   # Application bootstrap
 ├── internal/
 │   ├── adapter/                  # MCP server adapters (stdio, http, sse)
+│   ├── checker/                  # Configuration check & validation
 │   ├── config/                   # Configuration management
 │   ├── protocol/                 # MCP protocol definitions
 │   ├── router/                   # Message routing & tool aggregation

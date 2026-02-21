@@ -168,18 +168,43 @@ run() {
     "./${BINARY_NAME}" -config "${CONFIG_FILE}"
 }
 
+# 检查 MCP 服务器状态
+check() {
+    if [ ! -f "${PROJECT_DIR}/${BINARY_NAME}" ]; then
+        log_warn "二进制文件不存在，先进行编译..."
+        build
+    fi
+    
+    log_info "检查 MCP 服务器配置..."
+    cd "$PROJECT_DIR"
+    "./${BINARY_NAME}" -check -config "${CONFIG_FILE}" "$@"
+}
+
+# 检查 MCP 服务器状态（JSON 格式）
+check_json() {
+    if [ ! -f "${PROJECT_DIR}/${BINARY_NAME}" ]; then
+        log_warn "二进制文件不存在，先进行编译..."
+        build
+    fi
+    
+    cd "$PROJECT_DIR"
+    "./${BINARY_NAME}" -check -config "${CONFIG_FILE}" -output json
+}
+
 # 显示帮助
 usage() {
-    echo "用法: $0 {build|start|stop|restart|status|logs|run}"
+    echo "用法: $0 {build|start|stop|restart|status|logs|run|check|check-json}"
     echo ""
     echo "命令:"
-    echo "  build    - 编译 macOS 版本"
-    echo "  start    - 后台启动服务"
-    echo "  stop     - 停止服务"
-    echo "  restart  - 重启服务"
-    echo "  status   - 查看服务状态"
-    echo "  logs     - 查看实时日志"
-    echo "  run      - 前台运行（调试用）"
+    echo "  build      - 编译 macOS 版本"
+    echo "  start      - 后台启动服务"
+    echo "  stop       - 停止服务"
+    echo "  restart    - 重启服务"
+    echo "  status     - 查看服务状态"
+    echo "  logs       - 查看实时日志"
+    echo "  run        - 前台运行（调试用）"
+    echo "  check      - 检查 MCP 服务器状态和工具列表"
+    echo "  check-json - 检查 MCP 服务器（JSON 格式输出）"
 }
 
 # 主入口
@@ -204,6 +229,13 @@ case "$1" in
         ;;
     run)
         run
+        ;;
+    check)
+        shift
+        check "$@"
+        ;;
+    check-json)
+        check_json
         ;;
     *)
         usage
