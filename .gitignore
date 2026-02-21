@@ -1,0 +1,52 @@
+# ======================
+# MCP Gateway .gitignore
+# ======================
+
+# 编译产物（仅根目录）
+/mcp-gateway
+/mcp-gateway-linux
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试产物
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# 运行时文件
+*.log
+*.pid
+.env
+.env.local
+.env.*.local
+
+# 包含敏感信息的脚本（使用 .example 版本）
+run_local.sh
+deploy_remote.sh
+
+# 包含敏感信息的配置（使用 .example 版本）
+configs/mcp_config.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 依赖目录
+vendor/
+
+# 临时文件
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,70 @@
+{
+  "upstream": {
+    "endpoint": "${MCP_ENDPOINT}",
+    "reconnect": {
+      "enabled": true,
+      "initialBackoff": "1s",
+      "maxBackoff": "10m",
+      "multiplier": 2
+    },
+    "keepalive": {
+      "interval": "30s",
+      "timeout": "10s"
+    }
+  },
+  "mcpServers": {
+    "local-stdio-calculator": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["calculator.py"],
+      "timeout": "30s",
+      "disabled": true
+    },
+    "tencentdocs": {
+      "type": "http",
+      "url": "https://docs.qq.com/openapi/mcp",
+      "headers": {
+        "Authorization": "your-tencentdocs-token-here"
+      },
+      "timeout": "60s",
+      "disabled": true
+    },
+    "heventure-search-mcp": {
+      "type": "stdio",
+      "command": "/root/.local/bin/uvx",
+      "args": [
+        "--from", "heventure-search-mcp",
+        "python", "/opt/mcp-calculator-deploy/bing_search_wrapper.py"
+      ],
+      "timeout": "120s",
+      "disabled": true
+    },
+    "open-webSearch": {
+      "type": "http",
+      "url": "http://127.0.0.1:3000/mcp",
+      "timeout": "120s",
+      "headers": {
+        "Accept": "application/json, text/event-stream"
+      },
+      "disabled": false
+    },
+    "remote-sse-server": {
+      "type": "sse",
+      "url": "https://api.example.com/sse",
+      "disabled": true
+    },
+    "remote-http-server": {
+      "type": "http",
+      "url": "https://api.example.com/mcp",
+      "disabled": true
+    }
+  },
+  "logging": {
+    "level": "info",
+    "format": "text"
+  },
+  "metrics": {
+    "enabled": false,
+    "port": 9090
+  }
+}
