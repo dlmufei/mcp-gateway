@@ -61,7 +61,8 @@
   },
   "logging": {
     "level": "info",
-    "format": "text"
+    "format": "text",
+    "verbose": false
   },
   "metrics": {
     "enabled": false,

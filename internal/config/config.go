@@ -41,10 +41,10 @@ type KeepaliveConfig struct {
 // ServerConfig represents a downstream MCP server configuration
 type ServerConfig struct {
 	Name        string            `json:"name,omitempty"`
-	Type        string            `json:"type"`        // stdio, http, sse, streamablehttp
-	Command     string            `json:"command,omitempty"`     // for stdio
-	Args        []string          `json:"args,omitempty"`        // for stdio
-	URL         string            `json:"url,omitempty"`         // for http/sse
+	Type        string            `json:"type"`              // stdio, http, sse, streamablehttp
+	Command     string            `json:"command,omitempty"` // for stdio
+	Args        []string          `json:"args,omitempty"`    // for stdio
+	URL         string            `json:"url,omitempty"`     // for http/sse
 	Headers     map[string]string `json:"headers,omitempty"`
 	Env         map[string]string `json:"env,omitempty"`
 	Timeout     Duration          `json:"timeout,omitempty"`
@@ -54,8 +54,9 @@ type ServerConfig struct {
 
 // LoggingConfig configures logging
 type LoggingConfig struct {
-	Level  string `json:"level"`  // debug, info, warn, error
-	Format string `json:"format"` // json, text
+	Level   string `json:"level"`   // debug, info, warn, error
+	Format  string `json:"format"`  // json, text
+	Verbose bool   `json:"verbose"` // verbose mode: output full request/response content
 }
 
 // MetricsConfig configures metrics
@@ -115,8 +116,9 @@ func DefaultConfig() *Config {
 		},
 		MCPServers: make(map[string]ServerConfig),
 		Logging: LoggingConfig{
-			Level:  "info",
-			Format: "text",
+			Level:   "info",
+			Format:  "text",
+			Verbose: false,
 		},
 		Metrics: MetricsConfig{
 			Enabled: false,
@@ -190,14 +192,14 @@ func (c *Config) Validate() error {
 	if c.Upstream.Endpoint == "" {
 		return fmt.Errorf("upstream endpoint is required (set MCP_ENDPOINT)")
 	}
-	
+
 	enabledCount := 0
 	for name, server := range c.MCPServers {
 		if server.Disabled {
 			continue
 		}
 		enabledCount++
-		
+
 		switch server.Type {
 		case "stdio":
 			if server.Command == "" {
@@ -213,11 +215,11 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("server %q: unsupported type %q", name, server.Type)
 		}
 	}
-	
+
 	if enabledCount == 0 {
 		return fmt.Errorf("at least one enabled MCP server is required")
 	}
-	
+
 	return nil
 }
 

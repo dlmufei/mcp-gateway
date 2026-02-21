@@ -83,6 +83,12 @@ func run(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
 	// Create router
 	r := router.NewRouter(logger)
 
+	// Set verbose mode from config
+	r.SetVerbose(cfg.Logging.Verbose)
+	if cfg.Logging.Verbose {
+		logger.Info("verbose logging enabled")
+	}
+
 	// Create adapter factory
 	factory := adapter.NewFactory()
 

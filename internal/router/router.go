@@ -18,6 +18,7 @@ type Router struct {
 	toolIndex map[string]string // tool_name -> adapter_name
 	mu        sync.RWMutex
 	logger    *slog.Logger
+	verbose   bool // verbose mode: output full request/response content
 
 	// Gateway info for initialize response
 	gatewayInfo protocol.Implementation
@@ -29,11 +30,17 @@ func NewRouter(logger *slog.Logger) *Router {
 		adapters:  make(map[string]adapter.Adapter),
 		toolIndex: make(map[string]string),
 		logger:    logger.With("component", "router"),
+		verbose:   false,
 		gatewayInfo: protocol.Implementation{
 			Name:    "mcp-gateway",
 			Version: "1.0.0",
 		},
 	}
+}
+
+// SetVerbose sets the verbose mode for detailed logging
+func (r *Router) SetVerbose(verbose bool) {
+	r.verbose = verbose
 }
 
 // RegisterAdapter registers an adapter with the router
@@ -205,7 +212,17 @@ func (r *Router) handleToolsCall(ctx context.Context, msg *protocol.Message) (*p
 			"invalid params: "+err.Error(), nil)
 	}
 
-	r.logger.Info("tool call", "tool", params.Name)
+	// Log tool call - simple mode by default
+	if r.verbose {
+		// Verbose mode: output full request content
+		r.logger.Info("tool call",
+			"tool", params.Name,
+			"arguments", string(params.Arguments),
+		)
+	} else {
+		// Simple mode: only output tool name
+		r.logger.Info("tool call", "tool", params.Name)
+	}
 
 	// Find adapter for this tool
 	r.mu.RLock()
@@ -223,6 +240,22 @@ func (r *Router) handleToolsCall(ctx context.Context, msg *protocol.Message) (*p
 	if err != nil {
 		r.logger.Error("tool call failed", "tool", params.Name, "error", err)
 		return protocol.NewErrorResponse(msg.ID, protocol.ErrCodeInternalError, err.Error(), nil)
+	}
+
+	// Log response in verbose mode
+	if r.verbose && resp != nil {
+		if resp.Error != nil {
+			r.logger.Info("tool response",
+				"tool", params.Name,
+				"error_code", resp.Error.Code,
+				"error_message", resp.Error.Message,
+			)
+		} else if resp.Result != nil {
+			r.logger.Info("tool response",
+				"tool", params.Name,
+				"result", string(resp.Result),
+			)
+		}
 	}
 
 	return resp, nil
