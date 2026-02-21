@@ -11,17 +11,18 @@ import (
 
 // Config represents the main configuration
 type Config struct {
-	Upstream   UpstreamConfig          `json:"upstream"`
-	MCPServers map[string]ServerConfig `json:"mcpServers"`
-	Logging    LoggingConfig           `json:"logging"`
-	Metrics    MetricsConfig           `json:"metrics"`
+	Upstreams []UpstreamInstanceConfig `json:"upstreams"`
+	Logging   LoggingConfig            `json:"logging"`
+	Metrics   MetricsConfig            `json:"metrics"`
 }
 
-// UpstreamConfig configures the upstream WebSocket connection
-type UpstreamConfig struct {
-	Endpoint  string          `json:"endpoint"`
-	Reconnect ReconnectConfig `json:"reconnect"`
-	Keepalive KeepaliveConfig `json:"keepalive"`
+// UpstreamInstanceConfig represents a single upstream instance with its own MCP servers
+type UpstreamInstanceConfig struct {
+	Name       string                  `json:"name"`
+	Endpoint   string                  `json:"endpoint"`
+	Reconnect  ReconnectConfig         `json:"reconnect"`
+	Keepalive  KeepaliveConfig         `json:"keepalive"`
+	MCPServers map[string]ServerConfig `json:"mcpServers"`
 }
 
 // ReconnectConfig configures reconnection behavior
@@ -102,19 +103,7 @@ func (d Duration) Duration() time.Duration {
 // DefaultConfig returns a configuration with default values
 func DefaultConfig() *Config {
 	return &Config{
-		Upstream: UpstreamConfig{
-			Reconnect: ReconnectConfig{
-				Enabled:        true,
-				InitialBackoff: Duration(time.Second),
-				MaxBackoff:     Duration(10 * time.Minute),
-				Multiplier:     2,
-			},
-			Keepalive: KeepaliveConfig{
-				Interval: Duration(30 * time.Second),
-				Timeout:  Duration(10 * time.Second),
-			},
-		},
-		MCPServers: make(map[string]ServerConfig),
+		Upstreams: []UpstreamInstanceConfig{},
 		Logging: LoggingConfig{
 			Level:   "info",
 			Format:  "text",
@@ -124,6 +113,23 @@ func DefaultConfig() *Config {
 			Enabled: false,
 			Port:    9090,
 		},
+	}
+}
+
+// DefaultUpstreamConfig returns default upstream configuration values
+func DefaultUpstreamConfig() UpstreamInstanceConfig {
+	return UpstreamInstanceConfig{
+		Reconnect: ReconnectConfig{
+			Enabled:        true,
+			InitialBackoff: Duration(time.Second),
+			MaxBackoff:     Duration(10 * time.Minute),
+			Multiplier:     2,
+		},
+		Keepalive: KeepaliveConfig{
+			Interval: Duration(30 * time.Second),
+			Timeout:  Duration(10 * time.Second),
+		},
+		MCPServers: make(map[string]ServerConfig),
 	}
 }
 
@@ -174,14 +180,15 @@ func (c *Config) loadFromFile(path string) error {
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(data, c)
+
+	// Expand environment variables in the config file
+	expanded := os.ExpandEnv(string(data))
+
+	return json.Unmarshal([]byte(expanded), c)
 }
 
 // loadFromEnv loads configuration from environment variables
 func (c *Config) loadFromEnv() {
-	if endpoint := os.Getenv("MCP_ENDPOINT"); endpoint != "" {
-		c.Upstream.Endpoint = endpoint
-	}
 	if level := os.Getenv("MCP_LOG_LEVEL"); level != "" {
 		c.Logging.Level = level
 	}
@@ -189,44 +196,53 @@ func (c *Config) loadFromEnv() {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	if c.Upstream.Endpoint == "" {
-		return fmt.Errorf("upstream endpoint is required (set MCP_ENDPOINT)")
+	if len(c.Upstreams) == 0 {
+		return fmt.Errorf("at least one upstream is required")
 	}
 
-	enabledCount := 0
-	for name, server := range c.MCPServers {
-		if server.Disabled {
-			continue
+	for i, upstream := range c.Upstreams {
+		if upstream.Name == "" {
+			return fmt.Errorf("upstream[%d]: name is required", i)
 		}
-		enabledCount++
-
-		switch server.Type {
-		case "stdio":
-			if server.Command == "" {
-				return fmt.Errorf("server %q: command is required for stdio type", name)
-			}
-		case "http", "sse", "streamablehttp":
-			if server.URL == "" {
-				return fmt.Errorf("server %q: url is required for %s type", name, server.Type)
-			}
-		case "":
-			return fmt.Errorf("server %q: type is required", name)
-		default:
-			return fmt.Errorf("server %q: unsupported type %q", name, server.Type)
+		if upstream.Endpoint == "" {
+			return fmt.Errorf("upstream[%d] %q: endpoint is required", i, upstream.Name)
 		}
-	}
 
-	if enabledCount == 0 {
-		return fmt.Errorf("at least one enabled MCP server is required")
+		enabledCount := 0
+		for name, server := range upstream.MCPServers {
+			if server.Disabled {
+				continue
+			}
+			enabledCount++
+
+			switch server.Type {
+			case "stdio":
+				if server.Command == "" {
+					return fmt.Errorf("upstream %q server %q: command is required for stdio type", upstream.Name, name)
+				}
+			case "http", "sse", "streamablehttp":
+				if server.URL == "" {
+					return fmt.Errorf("upstream %q server %q: url is required for %s type", upstream.Name, name, server.Type)
+				}
+			case "":
+				return fmt.Errorf("upstream %q server %q: type is required", upstream.Name, name)
+			default:
+				return fmt.Errorf("upstream %q server %q: unsupported type %q", upstream.Name, name, server.Type)
+			}
+		}
+
+		if enabledCount == 0 {
+			return fmt.Errorf("upstream %q: at least one enabled MCP server is required", upstream.Name)
+		}
 	}
 
 	return nil
 }
 
-// EnabledServers returns a list of enabled server names
-func (c *Config) EnabledServers() []string {
+// EnabledServers returns a list of enabled server names for an upstream
+func (u *UpstreamInstanceConfig) EnabledServers() []string {
 	var servers []string
-	for name, server := range c.MCPServers {
+	for name, server := range u.MCPServers {
 		if !server.Disabled {
 			servers = append(servers, name)
 		}

@@ -21,7 +21,8 @@ type MessageHandler func(ctx context.Context, msg *protocol.Message) (*protocol.
 
 // Client manages the upstream WebSocket connection
 type Client struct {
-	cfg     config.UpstreamConfig
+	name    string
+	cfg     config.UpstreamInstanceConfig
 	conn    *websocket.Conn
 	handler MessageHandler
 	logger  *slog.Logger
@@ -36,11 +37,12 @@ type Client struct {
 }
 
 // NewClient creates a new upstream WebSocket client
-func NewClient(cfg config.UpstreamConfig, handler MessageHandler, logger *slog.Logger) *Client {
+func NewClient(cfg config.UpstreamInstanceConfig, handler MessageHandler, logger *slog.Logger) *Client {
 	return &Client{
+		name:    cfg.Name,
 		cfg:     cfg,
 		handler: handler,
-		logger:  logger.With("component", "upstream"),
+		logger:  logger.With("component", "upstream", "upstream", cfg.Name),
 		closeCh: make(chan struct{}),
 		pending: make(map[any]chan *protocol.Message),
 	}

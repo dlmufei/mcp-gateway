@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/cliffyan/mcp-gateway/internal/adapter"
@@ -53,8 +54,7 @@ func main() {
 	// Log startup info
 	logger.Info("starting mcp-gateway",
 		"version", version,
-		"endpoint", cfg.Upstream.Endpoint,
-		"servers", cfg.EnabledServers(),
+		"upstreams", len(cfg.Upstreams),
 	)
 
 	// Create context with cancellation
@@ -80,22 +80,61 @@ func main() {
 }
 
 func run(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
-	// Create router
-	r := router.NewRouter(logger)
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(cfg.Upstreams))
 
-	// Set verbose mode from config
-	r.SetVerbose(cfg.Logging.Verbose)
-	if cfg.Logging.Verbose {
-		logger.Info("verbose logging enabled")
+	// Start each upstream instance
+	for _, upstreamCfg := range cfg.Upstreams {
+		wg.Add(1)
+		go func(ucfg config.UpstreamInstanceConfig) {
+			defer wg.Done()
+			if err := runUpstream(ctx, ucfg, cfg.Logging, logger); err != nil {
+				errCh <- fmt.Errorf("[%s] %w", ucfg.Name, err)
+			}
+		}(upstreamCfg)
 	}
+
+	// Wait for all upstreams to complete
+	wg.Wait()
+	close(errCh)
+
+	// Collect errors
+	var errors []error
+	for err := range errCh {
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("upstream errors: %v", errors)
+	}
+
+	return nil
+}
+
+func runUpstream(ctx context.Context, ucfg config.UpstreamInstanceConfig, logCfg config.LoggingConfig, logger *slog.Logger) error {
+	upstreamLogger := logger.With("upstream", ucfg.Name)
+
+	upstreamLogger.Info("starting upstream instance",
+		"endpoint", ucfg.Endpoint,
+		"servers", ucfg.EnabledServers(),
+	)
+
+	// Set verbose mode
+	if logCfg.Verbose {
+		upstreamLogger.Info("verbose logging enabled")
+	}
+
+	// Create router for this upstream
+	r := router.NewRouter(upstreamLogger)
+	r.SetVerbose(logCfg.Verbose)
 
 	// Create adapter factory
 	factory := adapter.NewFactory()
 
-	// Create and start adapters
-	for name, serverCfg := range cfg.MCPServers {
+	// Create and start adapters for this upstream
+	for name, serverCfg := range ucfg.MCPServers {
 		if serverCfg.Disabled {
-			logger.Info("skipping disabled server", "name", name)
+			upstreamLogger.Info("skipping disabled server", "name", name)
 			continue
 		}
 
@@ -109,17 +148,17 @@ func run(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
 		}
 
 		r.RegisterAdapter(name, a)
-		logger.Info("started adapter", "name", name, "type", serverCfg.Type)
+		upstreamLogger.Info("started adapter", "name", name, "type", serverCfg.Type)
 	}
 
 	// Initialize all adapters (MCP handshake + list tools)
-	logger.Info("initializing adapters...")
+	upstreamLogger.Info("initializing adapters...")
 	if err := r.InitializeAll(ctx); err != nil {
-		logger.Warn("some adapters failed to initialize", "error", err)
+		upstreamLogger.Warn("some adapters failed to initialize", "error", err)
 		// Continue anyway, some adapters may have succeeded
 	}
 
-	logger.Info("initialization complete",
+	upstreamLogger.Info("initialization complete",
 		"adapters", r.AdapterCount(),
 		"tools", r.ToolCount(),
 	)
@@ -130,7 +169,7 @@ func run(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
 	}
 
 	// Create upstream client
-	client := upstream.NewClient(cfg.Upstream, handler, logger)
+	client := upstream.NewClient(ucfg, handler, upstreamLogger)
 
 	// Run upstream client (blocks until context cancelled)
 	return client.Run(ctx)
