@@ -11,8 +11,10 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/cliffyan/mcp-gateway/internal/adapter"
+	"github.com/cliffyan/mcp-gateway/internal/checker"
 	"github.com/cliffyan/mcp-gateway/internal/config"
 	"github.com/cliffyan/mcp-gateway/internal/protocol"
 	"github.com/cliffyan/mcp-gateway/internal/router"
@@ -27,10 +29,22 @@ func main() {
 	// Parse flags
 	configPath := flag.String("config", "", "Path to config file")
 	showVersion := flag.Bool("version", false, "Show version")
+	checkMode := flag.Bool("check", false, "Check MCP servers status and list tools")
+	outputFormat := flag.String("output", "text", "Output format for check: text, json")
+	checkTimeout := flag.Duration("timeout", 30*time.Second, "Timeout for each MCP server check")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("mcp-gateway version %s\n", version)
+		os.Exit(0)
+	}
+
+	// Check mode: validate configuration and list tools
+	if *checkMode {
+		if err := checker.RunCheck(*configPath, *checkTimeout, *outputFormat); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 
