@@ -1,5 +1,5 @@
 module github.com/cliffyan/mcp-gateway
 
-go 1.23.8
+go 1.23
 
 require github.com/gorilla/websocket v1.5.3
