@@ -190,9 +190,9 @@ See `configs/mcp_config.example.json` for full example:
       "reconnect": { "enabled": true },
       "keepalive": { "interval": "30s", "timeout": "10s" },
       "mcpServers": {
-        "smartrun": {
+        "xxx-mcp": {
           "type": "http",
-          "url": "https://smartrun.woa.com/mcp",
+          "url": "https://xxx-mcp.123.com/mcp",
           "headers": { "Authorization": "Bearer your-smartrun-token" },
           "timeout": "180s"
         }
